@@ -68,8 +68,16 @@ async def send_email_otp(email: str, otp: str) -> bool:
         
         msg.attach(MIMEText(body, 'html'))
         
-        # Use SMTP_SSL for Zoho on port 465 with timeout
-        server = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30)
+        # Use SSL or TLS based on configuration
+        if settings.SMTP_USE_SSL:
+            # Port 465 - SSL
+            server = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30)
+        else:
+            # Port 587 - TLS (STARTTLS)
+            server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30)
+            if settings.SMTP_USE_TLS:
+                server.starttls()
+        
         server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
         text = msg.as_string()
         server.sendmail(settings.FROM_EMAIL, email, text)
@@ -332,8 +340,16 @@ async def send_email_notification(
             
             msg.attach(MIMEText(body, 'html' if is_html else 'plain'))
             
-            # Use SMTP_SSL for Zoho on port 465 with timeout
-            server = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30)
+            # Use SSL or TLS based on configuration
+            if settings.SMTP_USE_SSL:
+                # Port 465 - SSL
+                server = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30)
+            else:
+                # Port 587 - TLS (STARTTLS)
+                server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30)
+                if settings.SMTP_USE_TLS:
+                    server.starttls()
+            
             server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
             text = msg.as_string()
             server.sendmail(settings.FROM_EMAIL, to_email, text)
