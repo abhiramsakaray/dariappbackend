@@ -44,7 +44,7 @@ def generate_otp() -> str:
 
 
 async def send_email_otp(email: str, otp: str) -> bool:
-    """Send OTP via email"""
+    """Send OTP via email with timeout protection"""
     try:
         # Create message
         msg = MIMEMultipart()
@@ -68,14 +68,17 @@ async def send_email_otp(email: str, otp: str) -> bool:
         
         msg.attach(MIMEText(body, 'html'))
         
-        # Use SMTP_SSL for Zoho on port 465
-        server = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT)
+        # Use SMTP_SSL for Zoho on port 465 with timeout
+        server = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30)
         server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
         text = msg.as_string()
         server.sendmail(settings.FROM_EMAIL, email, text)
         server.quit()
         
         return True
+    except TimeoutError as e:
+        print(f"Timeout sending email OTP: {e}")
+        return False
     except Exception as e:
         print(f"Error sending email OTP: {e}")
         return False
@@ -318,7 +321,7 @@ async def send_email_notification(
     body: str, 
     is_html: bool = True
 ) -> bool:
-    """Send email notification"""
+    """Send email notification with timeout protection"""
     try:
         # Run the synchronous SMTP operations in a thread
         def _send_email():
@@ -329,19 +332,22 @@ async def send_email_notification(
             
             msg.attach(MIMEText(body, 'html' if is_html else 'plain'))
             
-            # Use SMTP_SSL for Zoho on port 465
-            server = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT)
+            # Use SMTP_SSL for Zoho on port 465 with timeout
+            server = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30)
             server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
             text = msg.as_string()
             server.sendmail(settings.FROM_EMAIL, to_email, text)
             server.quit()
             return True
         
-        # Execute in thread to avoid blocking the async event loop
+        # Execute in thread to avoid blocking the async event loop with 30 second timeout
         import asyncio
-        result = await asyncio.to_thread(_send_email)
+        result = await asyncio.wait_for(asyncio.to_thread(_send_email), timeout=30.0)
         print(f"Email sent successfully to {to_email}")
         return result
+    except asyncio.TimeoutError:
+        print(f"Timeout sending email notification to {to_email}")
+        return False
     except Exception as e:
         print(f"Error sending email notification: {e}")
         return False

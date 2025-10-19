@@ -29,18 +29,19 @@ def get_async_engine():
         _async_engine = create_async_engine(
             async_url,
             echo=True if settings.ENVIRONMENT == "development" else False,
-            pool_size=5,  # Reduced pool size to prevent hanging
-            max_overflow=10,  # Reduced overflow
-            pool_timeout=30,  # Increased to 30 seconds for blockchain operations
-            pool_recycle=1800,  # Recycle connections after 30 minutes
+            pool_size=10,  # Increased pool size for production
+            max_overflow=20,  # More connections available
+            pool_timeout=60,  # 60 seconds timeout - enough for blockchain operations
+            pool_recycle=3600,  # Recycle connections after 1 hour
             pool_pre_ping=True,  # Verify connections before use
             # Add query timeout settings - more reasonable for production
             connect_args={
-                "command_timeout": 30,  # 30 second command timeout (for blockchain ops)
+                "command_timeout": 60,  # 60 second command timeout (for blockchain ops)
+                "timeout": 60,  # Connection timeout
                 "server_settings": {
-                    "statement_timeout": "30s",  # 30 second statement timeout
-                    "lock_timeout": "10s",  # 10 second lock timeout
-                    "idle_in_transaction_session_timeout": "60s"  # 60 second idle timeout for blockchain
+                    "statement_timeout": "60s",  # 60 second statement timeout
+                    "lock_timeout": "30s",  # 30 second lock timeout
+                    "idle_in_transaction_session_timeout": "120s"  # 2 minute idle timeout
                 }
             }
         )
@@ -53,14 +54,14 @@ def get_sync_engine():
         _sync_engine = create_engine(
             settings.DATABASE_URL_SYNC,
             echo=True if settings.ENVIRONMENT == "development" else False,
-            pool_size=5,  # Reduced pool size to prevent hanging
-            max_overflow=10,  # Reduced overflow
-            pool_timeout=5,  # Reduced timeout to 5 seconds
-            pool_recycle=1800,  # Recycle connections after 30 minutes
+            pool_size=10,  # Increased pool size for production
+            max_overflow=20,  # More connections available
+            pool_timeout=30,  # 30 seconds timeout
+            pool_recycle=3600,  # Recycle connections after 1 hour
             pool_pre_ping=True,  # Verify connections before use
             # Add query timeout settings
             connect_args={
-                "options": "-c statement_timeout=5s -c lock_timeout=3s"
+                "options": "-c statement_timeout=30s -c lock_timeout=10s"
             }
         )
     return _sync_engine
@@ -96,15 +97,25 @@ Base = declarative_base()
 async def get_db():
     """Dependency to get database session with improved error handling"""
     session_local = get_async_session_local()
-    async with session_local() as session:
-        try:
-            yield session
-        except Exception as e:
-            # Rollback on any exception
-            await session.rollback()
-            raise
-        finally:
-            # Close session safely, handling stale connections
+    session = None
+    try:
+        session = session_local()
+        yield session
+        # Commit if no exception occurred
+        if session.in_transaction():
+            await session.commit()
+    except Exception as e:
+        # Rollback on any exception
+        if session and session.in_transaction():
+            try:
+                await session.rollback()
+            except Exception as rollback_error:
+                # Log but don't raise if rollback fails (connection already dead)
+                print(f"Warning: Error during rollback: {rollback_error}")
+        raise
+    finally:
+        # Close session safely, handling stale connections
+        if session:
             try:
                 await session.close()
             except Exception as close_error:
