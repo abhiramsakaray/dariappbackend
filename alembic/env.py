@@ -12,7 +12,7 @@ from app.core.database import Base
 from app.core.config import settings
 
 # Import all models to ensure they are registered with SQLAlchemy
-from app.models import user
+from app.models import user, wallet, transaction, token, kyc, push_token, payment_method, notification, user_file, qr_code, address_resolver, reserved_address
 
 # this is the Alembic Config object
 config = context.config
