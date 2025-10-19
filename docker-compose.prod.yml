@@ -1,0 +1,117 @@
+version: '3.8'
+
+services:
+  db:
+    environment:
+      - POSTGRES_DB=${DB_NAME:-dari_wallet_v2}
+      - POSTGRES_USER=${DB_USER:-dari_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    restart: always
+
+  redis:
+    restart: always
+    volumes:
+      - redis_data_prod:/data
+
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-dari_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-dari_wallet_v2}
+      - DATABASE_URL_SYNC=postgresql://${DB_USER:-dari_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-dari_wallet_v2}
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=false
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+    restart: always
+    volumes:
+      - uploads_prod:/app/uploads
+
+  celery_worker:
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-dari_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-dari_wallet_v2}
+      - DATABASE_URL_SYNC=postgresql://${DB_USER:-dari_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-dari_wallet_v2}
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+    restart: always
+    volumes:
+      - uploads_prod:/app/uploads
+  api:
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-dari_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-dari_wallet_v2}
+      - DATABASE_URL_SYNC=postgresql://${DB_USER:-dari_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-dari_wallet_v2}
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=false
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - db
+    version: '3.8'
+
+    services:
+      db:
+        image: postgres:15
+        environment:
+          - POSTGRES_DB=${DB_NAME:-dari_wallet_v2}
+          - POSTGRES_USER=${DB_USER:-dari_user}
+          - POSTGRES_PASSWORD=${DB_PASSWORD}
+        volumes:
+          - postgres_data_prod:/var/lib/postgresql/data
+        restart: always
+
+      redis:
+        image: redis:7-alpine
+        restart: always
+        volumes:
+          - redis_data_prod:/data
+
+      api:
+        build: .
+        environment:
+          - ENVIRONMENT=production
+          - DATABASE_URL=postgresql+asyncpg://${DB_USER:-dari_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-dari_wallet_v2}
+          - DATABASE_URL_SYNC=postgresql://${DB_USER:-dari_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-dari_wallet_v2}
+          - REDIS_URL=redis://redis:6379/0
+          - SECRET_KEY=${SECRET_KEY}
+          - DEBUG=false
+          - CORS_ORIGINS=${CORS_ORIGINS:-*}
+        depends_on:
+          - db
+          - redis
+        restart: always
+        volumes:
+          - uploads_prod:/app/uploads
+        ports:
+          - "8000:8000"
+
+      celery_worker:
+        build: .
+        command: celery -A app.celery_app.celery_app worker --loglevel=info
+        environment:
+          - ENVIRONMENT=production
+          - DATABASE_URL=postgresql+asyncpg://${DB_USER:-dari_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-dari_wallet_v2}
+          - DATABASE_URL_SYNC=postgresql://${DB_USER:-dari_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-dari_wallet_v2}
+          - REDIS_URL=redis://redis:6379/0
+          - SECRET_KEY=${SECRET_KEY}
+        depends_on:
+          - db
+          - redis
+        restart: always
+        volumes:
+          - uploads_prod:/app/uploads
+
+    volumes:
+      postgres_data_prod:
+      redis_data_prod:
+      uploads_prod:
+          - db
+          - redis
+        restart: always
+        volumes:
+          - uploads_prod:/app/uploads
+
+    volumes:
+      postgres_data_prod:
+      redis_data_prod:
+      uploads_prod:

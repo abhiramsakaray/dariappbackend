@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: dari-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: starter
+    branch: main
+    healthCheckPath: /docs
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dari-postgres
+          property: connectionString
+      - key: DATABASE_URL_SYNC
+        fromDatabase:
+          name: dari-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: dari-redis
+          property: connectionString
+
+  - type: redis
+    name: dari-redis
+    region: oregon
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+
+databases:
+  - name: dari-postgres
+    databaseName: dari_wallet_v2
+    user: dari_user
+    region: oregon
+    plan: free
