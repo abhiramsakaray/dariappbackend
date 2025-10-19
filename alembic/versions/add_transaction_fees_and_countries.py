@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_transaction_fees_and_countries'
-down_revision = '33fc18b83ad0'
+down_revision = 'add_fcm_device_token'
 branch_labels = None
 depends_on = None
 
