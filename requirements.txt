@@ -41,6 +41,7 @@ pillow==10.1.0
 
 # Email and SMS
 twilio==8.10.2
+sendgrid==6.11.0
 
 # Firebase Cloud Messaging (Push Notifications)
 google-auth==2.27.0

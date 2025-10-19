@@ -69,7 +69,11 @@ class Settings(BaseSettings):
     OTP_EMAIL_ENABLED: bool = True
     OTP_SMS_ENABLED: bool = False
     
-    # Email
+    # Email - SendGrid (Recommended for cloud deployment)
+    SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")
+    USE_SENDGRID: bool = os.getenv("USE_SENDGRID", "true").lower() in ("1", "true", "yes")
+    
+    # Email - SMTP Fallback (for local development)
     SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "")

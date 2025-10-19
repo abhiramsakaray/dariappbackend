@@ -10,6 +10,14 @@ import string
 
 from app.core.config import settings
 
+# Import SendGrid service
+try:
+    from app.services.sendgrid_service import send_otp_email_sendgrid, send_notification_email_sendgrid
+    SENDGRID_AVAILABLE = True
+except ImportError:
+    print("⚠️  SendGrid not available - install: pip install sendgrid")
+    SENDGRID_AVAILABLE = False
+
 # Redis client for OTP storage - with fallback
 try:
     redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
@@ -44,8 +52,24 @@ def generate_otp() -> str:
 
 
 async def send_email_otp(email: str, otp: str) -> bool:
-    """Send OTP via email with timeout protection"""
+    """Send OTP via email - Uses SendGrid if available, falls back to SMTP"""
+    
+    # Try SendGrid first (recommended for cloud deployment)
+    if settings.USE_SENDGRID and SENDGRID_AVAILABLE and settings.SENDGRID_API_KEY:
+        try:
+            print(f"📧 Attempting to send OTP via SendGrid to {email}...")
+            result = await send_otp_email_sendgrid(email, otp)
+            if result:
+                return True
+            else:
+                print("⚠️  SendGrid failed, falling back to SMTP...")
+        except Exception as e:
+            print(f"⚠️  SendGrid error: {e}, falling back to SMTP...")
+    
+    # Fallback to SMTP (for local development or if SendGrid fails)
     try:
+        print(f"📧 Attempting to send OTP via SMTP to {email}...")
+        
         # Create message
         msg = MIMEMultipart()
         msg['From'] = settings.FROM_EMAIL
@@ -83,12 +107,13 @@ async def send_email_otp(email: str, otp: str) -> bool:
         server.sendmail(settings.FROM_EMAIL, email, text)
         server.quit()
         
+        print(f"✅ OTP sent successfully via SMTP to {email}")
         return True
     except TimeoutError as e:
-        print(f"Timeout sending email OTP: {e}")
+        print(f"❌ Timeout sending email OTP: {e}")
         return False
     except Exception as e:
-        print(f"Error sending email OTP: {e}")
+        print(f"❌ Error sending email OTP: {e}")
         return False
 
 
@@ -329,8 +354,24 @@ async def send_email_notification(
     body: str, 
     is_html: bool = True
 ) -> bool:
-    """Send email notification with timeout protection"""
+    """Send email notification - Uses SendGrid if available, falls back to SMTP"""
+    
+    # Try SendGrid first (recommended for cloud deployment)
+    if settings.USE_SENDGRID and SENDGRID_AVAILABLE and settings.SENDGRID_API_KEY:
+        try:
+            print(f"📧 Attempting to send notification via SendGrid to {to_email}...")
+            result = await send_notification_email_sendgrid(to_email, subject, body)
+            if result:
+                return True
+            else:
+                print("⚠️  SendGrid failed, falling back to SMTP...")
+        except Exception as e:
+            print(f"⚠️  SendGrid error: {e}, falling back to SMTP...")
+    
+    # Fallback to SMTP
     try:
+        print(f"📧 Attempting to send notification via SMTP to {to_email}...")
+        
         # Run the synchronous SMTP operations in a thread
         def _send_email():
             msg = MIMEMultipart()
@@ -359,13 +400,13 @@ async def send_email_notification(
         # Execute in thread to avoid blocking the async event loop with 30 second timeout
         import asyncio
         result = await asyncio.wait_for(asyncio.to_thread(_send_email), timeout=30.0)
-        print(f"Email sent successfully to {to_email}")
+        print(f"✅ Email sent successfully to {to_email}")
         return result
     except asyncio.TimeoutError:
-        print(f"Timeout sending email notification to {to_email}")
+        print(f"❌ Timeout sending email notification to {to_email}")
         return False
     except Exception as e:
-        print(f"Error sending email notification: {e}")
+        print(f"❌ Error sending email notification: {e}")
         return False
 
 
