@@ -107,8 +107,16 @@ class TransactionFilter(BaseModel):
 class TransactionSend(BaseModel):
     to_address: str = Field(..., min_length=1, description="Can be wallet address (0x...), DARI username (username@dari), or phone number (+1234567890)")
     amount: Decimal = Field(..., gt=0)
-    token: str = Field(..., pattern=r'^(USDC|MATIC)$')  # Removed USDT
+    token: str = Field(..., description="Token symbol: USDC, USDT, or MATIC (case-insensitive)")
     pin: str = Field(..., pattern=r'^\d{4,6}$')
+    
+    @field_validator('token')
+    def validate_token(cls, v):
+        """Validate and normalize token symbol (case-insensitive)"""
+        v_upper = v.upper()
+        if v_upper not in ['USDC', 'USDT', 'MATIC']:
+            raise ValueError('Token must be one of: USDC, USDT, MATIC')
+        return v_upper
     transfer_method: Optional[str] = Field(default="auto", pattern=r'^(auto|wallet|dari|phone)$', description="Transfer method: auto (detect), wallet (0x address), dari (username@dari), or phone (phone number)")
     
     # Optional recipient details (for frontend to pass)
@@ -161,7 +169,15 @@ class TransactionQuery(BaseModel):
 class GasEstimationRequest(BaseModel):
     to_address: str = Field(..., min_length=1, description="Can be wallet address (0x...), DARI username (username@dari), or phone number (+1234567890)")
     amount: Decimal = Field(..., gt=0)
-    token: str = Field(..., pattern=r'^(USDC|USDT|MATIC)$')
+    token: str = Field(..., description="Token symbol: USDC, USDT, or MATIC (case-insensitive)")
+    
+    @field_validator('token')
+    def validate_token(cls, v):
+        """Validate and normalize token symbol (case-insensitive)"""
+        v_upper = v.upper()
+        if v_upper not in ['USDC', 'USDT', 'MATIC']:
+            raise ValueError('Token must be one of: USDC, USDT, MATIC')
+        return v_upper
     
     @field_validator('to_address')
     def validate_to_address(cls, v):
