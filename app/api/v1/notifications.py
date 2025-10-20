@@ -172,3 +172,73 @@ async def delete_notification(
         "success": True,
         "message": "Notification deleted"
     }
+
+
+# ============================================================================
+# Push Token Alias - For Mobile App Compatibility
+# ============================================================================
+
+@router.post("/push-token", response_model=dict, status_code=status.HTTP_200_OK)
+async def register_push_token_alias(
+    token_data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Alias endpoint for push token registration (mobile app compatibility).
+    Forwards to the actual push notifications service.
+    
+    Expected payload:
+    {
+        "token": "ExponentPushToken[...]",
+        "deviceType": "android" or "ios"
+    }
+    """
+    from app.crud import push_token as push_token_crud
+    from app.schemas.push_token import PushTokenCreate
+    
+    # Map mobile app fields to backend schema
+    expo_token = token_data.get("token") or token_data.get("expo_push_token")
+    device_type = token_data.get("deviceType") or token_data.get("device_type")
+    device_name = token_data.get("deviceName") or token_data.get("device_name")
+    
+    if not expo_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing required field: token or expo_push_token"
+        )
+    
+    if not device_type:
+        device_type = "android"  # Default to android if not specified
+    
+    try:
+        push_token_data = PushTokenCreate(
+            expo_push_token=expo_token,
+            device_type=device_type.lower(),
+            device_name=device_name
+        )
+        
+        db_token = await push_token_crud.register_push_token(
+            db, current_user.id, push_token_data
+        )
+        
+        return {
+            "success": True,
+            "message": "Push token registered successfully",
+            "data": {
+                "id": db_token.id,
+                "token": db_token.expo_push_token,
+                "device_type": db_token.device_type
+            }
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to register push token: {str(e)}"
+        )
+

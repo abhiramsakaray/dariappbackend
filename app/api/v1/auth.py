@@ -284,11 +284,75 @@ async def login_with_otp(
                 device_name=login_data.device_name or "Unknown Device"
             )
             
-            await push_token_crud.register_push_token(db, user.id, push_token_create)
             print(f"✅ Auto-registered push token for user {user.id}")
         except Exception as e:
             # Don't fail login if push token registration fails
             print(f"⚠️ Failed to auto-register push token: {str(e)}")
+    
+    # 🆕 Auto-create wallet if KYC is verified but no wallet exists
+    if user.kyc_verified:
+        try:
+            from app.crud import wallet as wallet_crud
+            from app.crud import address_resolver as address_crud
+            from app.crud import kyc as kyc_crud
+            
+            # Check if user already has a wallet
+            existing_wallet = await wallet_crud.get_user_wallet(db, user.id)
+            
+            if not existing_wallet:
+                print(f"🏦 KYC verified user {user.id} has no wallet. Creating...")
+                
+                # Create wallet
+                new_wallet = await wallet_crud.create_wallet(db, user.id)
+                print(f"✅ Wallet created: {new_wallet.address}")
+                
+                # Get KYC data for full name
+                kyc_request = await kyc_crud.get_kyc_by_user_id(db, user.id)
+                full_name = kyc_request.full_name if kyc_request else user.email.split('@')[0]
+                
+                # Generate DARI address from email (username@dari)
+                email_username = user.email.split('@')[0]
+                dari_address = f"{email_username}@dari"
+                
+                # Check if DARI address already exists
+                existing_address = await address_crud.get_address_by_dari_address(db, dari_address)
+                
+                if not existing_address:
+                    # Create DARI address
+                    await address_crud.create_address(
+                        db=db,
+                        user_id=user.id,
+                        wallet_address=new_wallet.address,
+                        dari_address=dari_address,
+                        full_name=full_name
+                    )
+                    print(f"✅ DARI address created: {dari_address}")
+                else:
+                    # If address exists, use a unique variation
+                    counter = 1
+                    while existing_address:
+                        dari_address = f"{email_username}{counter}@dari"
+                        existing_address = await address_crud.get_address_by_dari_address(db, dari_address)
+                        counter += 1
+                    
+                    await address_crud.create_address(
+                        db=db,
+                        user_id=user.id,
+                        wallet_address=new_wallet.address,
+                        dari_address=dari_address,
+                        full_name=full_name
+                    )
+                    print(f"✅ DARI address created: {dari_address} (unique variation)")
+                
+                await db.commit()
+                print(f"🎉 Wallet and DARI address setup complete for user {user.id}")
+            else:
+                print(f"ℹ️ User {user.id} already has wallet: {existing_wallet.address}")
+                
+        except Exception as e:
+            print(f"⚠️ Failed to auto-create wallet on login: {str(e)}")
+            # Don't fail login if wallet creation fails
+            await db.rollback()
     
     # Send login notification (non-blocking)
     try:
