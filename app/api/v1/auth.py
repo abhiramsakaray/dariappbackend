@@ -309,6 +309,9 @@ async def login_with_otp(
             from app.crud import wallet as wallet_crud
             from app.crud import address_resolver as address_crud
             from app.crud import kyc as kyc_crud
+            from app.schemas.wallet import WalletCreate
+            from eth_account import Account
+            from app.core.security import encrypt_data
             
             # Check if user already has a wallet
             existing_wallet = await wallet_crud.get_wallet_by_user_id(db, user.id)
@@ -316,8 +319,20 @@ async def login_with_otp(
             if not existing_wallet:
                 print(f"🏦 KYC verified user {user.id} has no wallet. Creating...")
                 
-                # Create wallet
-                new_wallet = await wallet_crud.create_wallet(db, user.id)
+                # Generate new Ethereum account
+                account = Account.create()
+                private_key = account.key.hex()
+                address = account.address
+                
+                # Encrypt private key
+                encrypted_private_key = encrypt_data(private_key)
+                
+                # Create wallet in database
+                wallet_data = WalletCreate(
+                    address=address,
+                    encrypted_private_key=encrypted_private_key
+                )
+                new_wallet = await wallet_crud.create_wallet(db, wallet_data, user.id)
                 print(f"✅ Wallet created: {new_wallet.address}")
                 
                 # Get KYC data for full name
