@@ -131,7 +131,7 @@ async def approve_kyc(db: AsyncSession, kyc_id: int, reviewer_id: int) -> Option
             from app.crud import address_resolver as address_crud
             
             # Check if user already has a wallet
-            existing_wallet = await wallet_crud.get_user_wallet(db, user.id)
+            existing_wallet = await wallet_crud.get_wallet_by_user_id(db, user.id)
             
             if not existing_wallet:
                 print(f"🏦 Creating wallet for user {user.id} after KYC approval...")

@@ -289,6 +289,20 @@ async def login_with_otp(
             # Don't fail login if push token registration fails
             print(f"⚠️ Failed to auto-register push token: {str(e)}")
     
+    # Store user data before any potential rollback
+    user_data = {
+        "id": user.id,
+        "email": user.email,
+        "phone": user.phone,
+        "role": user.role,
+        "is_active": user.is_active,
+        "kyc_verified": user.kyc_verified,
+        "terms_accepted": user.terms_accepted,
+        "otp_enabled": user.otp_enabled,
+        "created_at": user.created_at,
+        "last_login": user.last_login
+    }
+    
     # 🆕 Auto-create wallet if KYC is verified but no wallet exists
     if user.kyc_verified:
         try:
@@ -297,7 +311,7 @@ async def login_with_otp(
             from app.crud import kyc as kyc_crud
             
             # Check if user already has a wallet
-            existing_wallet = await wallet_crud.get_user_wallet(db, user.id)
+            existing_wallet = await wallet_crud.get_wallet_by_user_id(db, user.id)
             
             if not existing_wallet:
                 print(f"🏦 KYC verified user {user.id} has no wallet. Creating...")
@@ -352,7 +366,10 @@ async def login_with_otp(
         except Exception as e:
             print(f"⚠️ Failed to auto-create wallet on login: {str(e)}")
             # Don't fail login if wallet creation fails
-            await db.rollback()
+            try:
+                await db.rollback()
+            except:
+                pass
     
     # Send login notification (non-blocking)
     try:
@@ -375,18 +392,7 @@ async def login_with_otp(
         "success": True,
         "message": "Login successful",
         "data": {
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "phone": user.phone,
-                "role": user.role,
-                "is_active": user.is_active,
-                "kyc_verified": user.kyc_verified,
-                "terms_accepted": user.terms_accepted,
-                "otp_enabled": user.otp_enabled,
-                "created_at": user.created_at,
-                "last_login": user.last_login
-            },
+            "user": user_data,
             "tokens": {
                 "access_token": access_token,
                 "refresh_token": refresh_token,
