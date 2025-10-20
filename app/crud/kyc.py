@@ -130,6 +130,7 @@ async def approve_kyc(db: AsyncSession, kyc_id: int, reviewer_id: int) -> Option
             from app.crud import wallet as wallet_crud
             from app.crud import address_resolver as address_crud
             from app.schemas.wallet import WalletCreate
+            from app.schemas.address_resolver import AddressResolverCreate
             from eth_account import Account
             from app.core.security import encrypt_data
             
@@ -156,38 +157,31 @@ async def approve_kyc(db: AsyncSession, kyc_id: int, reviewer_id: int) -> Option
                 print(f"✅ Wallet created: {new_wallet.address}")
                 
                 # Generate DARI address from email (username@dari)
-                email_username = user.email.split('@')[0]  # Get username part before @
-                dari_address = f"{email_username}@dari"
+                email_username = user.email.split('@')[0]
+                dari_username = email_username
+                dari_address = f"{dari_username}@dari"
                 
                 # Check if DARI address already exists
-                existing_address = await address_crud.get_address_by_dari_address(db, dari_address)
+                existing_address = await address_crud.get_address_resolver_by_full_address(db, dari_address)
                 
-                if not existing_address:
-                    # Create DARI address
-                    await address_crud.create_address(
-                        db=db,
-                        user_id=user.id,
-                        wallet_address=new_wallet.address,
-                        dari_address=dari_address,
-                        full_name=db_kyc.full_name  # Use KYC verified name
-                    )
-                    print(f"✅ DARI address created: {dari_address}")
-                else:
+                if existing_address:
                     # If address exists, use a unique variation
                     counter = 1
                     while existing_address:
-                        dari_address = f"{email_username}{counter}@dari"
-                        existing_address = await address_crud.get_address_by_dari_address(db, dari_address)
+                        dari_username = f"{email_username}{counter}"
+                        dari_address = f"{dari_username}@dari"
+                        existing_address = await address_crud.get_address_resolver_by_full_address(db, dari_address)
                         counter += 1
-                    
-                    await address_crud.create_address(
-                        db=db,
-                        user_id=user.id,
-                        wallet_address=new_wallet.address,
-                        dari_address=dari_address,
-                        full_name=db_kyc.full_name
-                    )
-                    print(f"✅ DARI address created: {dari_address} (unique variation)")
+                
+                # Create DARI address
+                address_data = AddressResolverCreate(username=dari_username)
+                await address_crud.create_address_resolver(
+                    db=db,
+                    user_id=user.id,
+                    wallet_address=new_wallet.address,
+                    address_data=address_data
+                )
+                print(f"✅ DARI address created: {dari_address}")
                 
                 await db.commit()
                 print(f"🎉 Wallet and DARI address setup complete for user {user.id}")
