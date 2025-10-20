@@ -1,7 +1,7 @@
 """add transaction fees and countries
 
 Revision ID: add_transaction_fees_and_countries
-Revises: 7bb70ae33f7d
+Revises: e06a197116da
 Create Date: 2025-01-12 10:50:03
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_transaction_fees_and_countries'
-down_revision = 'add_fcm_device_token'
+down_revision = 'e06a197116da'
 branch_labels = None
 depends_on = None
 
