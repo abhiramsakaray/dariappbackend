@@ -630,6 +630,17 @@ def _send_with_relayer_gas(w3, from_address, to_address, amount, token_contract,
     gas_tx_hash = w3.eth.send_raw_transaction(signed_gas_tx.rawTransaction)
     
     logger.info(f"💸 Gas transfer sent: {gas_tx_hash.hex()}")
+    logger.info(f"   Gas transfer sent, waiting briefly for confirmation to avoid race conditions...")
+
+    # Wait for the gas transfer to be mined (short timeout). This avoids the token
+    # transaction being included before the gas transfer and failing with
+    # "insufficient funds for gas". If this times out we still proceed but log a warning.
+    try:
+        receipt = w3.eth.wait_for_transaction_receipt(gas_tx_hash, timeout=60)
+        logger.info(f"💚 Gas transfer confirmed: {receipt.transactionHash.hex()} in block {receipt.blockNumber}")
+    except Exception as e:
+        logger.warning(f"⚠️ Waiting for gas tx receipt failed or timed out: {e}. Proceeding but token tx may fail if relayer gas not available.")
+
     logger.info(f"   Immediately sending token transaction...")
     
     # Step 2: User sends token transaction immediately
