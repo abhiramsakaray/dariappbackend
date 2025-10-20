@@ -211,9 +211,12 @@ async def get_current_active_user(
     """
     from app.crud import user as user_crud
     
+    # Store user ID before any database operations (prevent detached instance errors)
+    user_id = current_user.id
+    
     try:
         # Refresh user from database to bind to current session
-        refreshed_user = await user_crud.get_user_by_id(db, current_user.id)
+        refreshed_user = await user_crud.get_user_by_id(db, user_id)
         
         if not refreshed_user:
             raise HTTPException(
@@ -238,7 +241,7 @@ async def get_current_active_user(
         raise
     except Exception as e:
         # Log and fallback to current_user if refresh fails
-        print(f"Warning: Failed to refresh user {current_user.id}: {e}")
+        print(f"Warning: Failed to refresh user {user_id}: {e}")
         # Try to access is_active safely
         try:
             if not current_user.is_active:
